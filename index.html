@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Recomail</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%234f46e5%22/><text x=%2250%22 y=%2268%22 font-size=%2260%22 fill=%22white%22 text-anchor=%22middle%22 font-family=%22Arial%22>R</text></svg>">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#f4f5f8; --panel:#ffffff; --border:#e5e7eb; --text:#1f2330; --muted:#6b7280;
+    --accent:#4f46e5; --accent2:#6366f1; --danger:#ef4444; --unread:#eef0ff; --hover:#f9fafb;
+  }
+  [data-theme="dark"]{
+    --bg:#0f1117; --panel:#161923; --border:#262b3a; --text:#eef0f5; --muted:#9aa0b0;
+    --accent:#818cf8; --accent2:#6366f1; --danger:#f87171; --unread:#1c2036; --hover:#1c202c;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{margin:0; font-family:'Segoe UI',Roboto,'Noto Sans Bengali',Arial,sans-serif; background:var(--bg); color:var(--text); height:100vh; overflow:hidden;}
+  button{font-family:inherit; cursor:pointer;}
+  input,textarea,select{font-family:inherit;}
+  ::-webkit-scrollbar{width:6px; height:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--border); border-radius:10px;}
+
+  /* ---------- AUTH SCREEN ---------- */
+  #authScreen{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#4f46e5,#6366f1); z-index:200;}
+  .authBox{background:var(--panel); width:92%; max-width:380px; border-radius:18px; padding:28px 24px; box-shadow:0 20px 50px rgba(0,0,0,.25);}
+  .authLogo{display:flex; align-items:center; gap:10px; justify-content:center; margin-bottom:18px;}
+  .authLogo .mark{width:42px; height:42px; border-radius:12px; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:20px;}
+  .authLogo span{font-size:22px; font-weight:800;}
+  .authBox h2{text-align:center; margin:0 0 6px; font-size:17px; color:var(--muted); font-weight:500;}
+  .field{margin-bottom:12px;}
+  .field label{font-size:12px; color:var(--muted); display:block; margin-bottom:4px;}
+  .field input{width:100%; padding:11px 12px; border:1px solid var(--border); border-radius:10px; background:var(--bg); color:var(--text); font-size:14px; outline:none;}
+  .field input:focus{border-color:var(--accent);}
+  .authBtn{width:100%; padding:12px; border:none; border-radius:10px; background:var(--accent); color:#fff; font-weight:700; font-size:15px; margin-top:6px;}
+  .authBtn:disabled{opacity:.6;}
+  .authSwitch{text-align:center; margin-top:14px; font-size:13px; color:var(--muted);}
+  .authSwitch a{color:var(--accent); cursor:pointer; font-weight:600; text-decoration:none;}
+  .authErr{color:var(--danger); font-size:12.5px; text-align:center; min-height:16px; margin-top:6px;}
+
+  /* ---------- APP LAYOUT ---------- */
+  #app{display:none; height:100vh; flex-direction:column;}
+  #app.show{display:flex;}
+  header.topbar{display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--border); flex-shrink:0;}
+  .menuBtn{display:none; background:none; border:none; font-size:20px; color:var(--text); padding:6px;}
+  .brand{display:flex; align-items:center; gap:8px; font-weight:800; font-size:19px; color:var(--text);}
+  .brand .mark{width:30px; height:30px; border-radius:8px; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px;}
+  .searchBar{flex:1; max-width:520px; margin:0 10px;}
+  .searchBar input{width:100%; padding:9px 14px; border-radius:20px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:14px; outline:none;}
+  .topActions{display:flex; align-items:center; gap:6px; margin-left:auto;}
+  .iconBtn{background:none; border:none; font-size:18px; padding:8px; border-radius:50%; color:var(--muted);}
+  .iconBtn:hover{background:var(--hover);}
+  .avatar{width:34px; height:34px; border-radius:50%; background:var(--accent2); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; cursor:pointer;}
+
+  .body{display:flex; flex:1; min-height:0;}
+  aside.sidebar{width:220px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; padding:14px 10px; flex-shrink:0; transition:transform .25s;}
+  .composeBtn{background:var(--accent); color:#fff; border:none; border-radius:14px; padding:13px; font-weight:700; font-size:14px; margin-bottom:16px; display:flex; align-items:center; gap:8px; justify-content:center; box-shadow:0 4px 14px rgba(79,70,229,.35);}
+  .navItem{display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:20px; margin-bottom:2px; color:var(--text); font-size:14.5px; cursor:pointer; user-select:none;}
+  .navItem:hover{background:var(--hover);}
+  .navItem.active{background:var(--unread); color:var(--accent); font-weight:700;}
+  .navItem .badge{margin-left:auto; font-size:12px; background:var(--accent); color:#fff; border-radius:10px; padding:1px 8px; font-weight:700;}
+  .navItem .badge:empty{display:none;}
+
+  main.mailArea{flex:1; display:flex; flex-direction:column; min-width:0; background:var(--panel); margin:10px 10px 10px 0; border-radius:14px; overflow:hidden; border:1px solid var(--border);}
+  .listHeader{display:flex; align-items:center; padding:12px 18px; border-bottom:1px solid var(--border); font-weight:700; font-size:15px; gap:10px;}
+  .listHeader .count{color:var(--muted); font-weight:400; font-size:13px;}
+  #mailList{flex:1; overflow-y:auto;}
+  .mailRow{display:flex; align-items:center; gap:12px; padding:13px 18px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .12s;}
+  .mailRow:hover{background:var(--hover);}
+  .mailRow.unread{background:var(--unread); font-weight:700;}
+  .mailRow .star{color:var(--muted); font-size:17px; flex-shrink:0;}
+  .mailRow .star.on{color:#f5b301;}
+  .mailRow .who{width:150px; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px;}
+  .mailRow .content{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; color:var(--text);}
+  .mailRow .content .snippet{color:var(--muted); font-weight:400;}
+  .mailRow .time{flex-shrink:0; font-size:12px; color:var(--muted); width:70px; text-align:right;}
+  .emptyState{display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--muted); gap:10px;}
+  .emptyState .big{font-size:46px;}
+
+  /* Reading pane */
+  #readPane{flex:1; display:none; flex-direction:column; overflow-y:auto; padding:20px 26px;}
+  #readPane.show{display:flex;}
+  .readTop{display:flex; align-items:center; gap:10px; margin-bottom:16px;}
+  .backBtn{background:none; border:none; font-size:20px; color:var(--muted); padding:4px 8px;}
+  .readSubject{font-size:20px; font-weight:800; flex:1;}
+  .readMeta{display:flex; align-items:center; gap:12px; margin-bottom:18px;}
+  .readAvatar{width:40px; height:40px; border-radius:50%; background:var(--accent2); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700;}
+  .readMeta .info b{font-size:14.5px;}
+  .readMeta .info div{font-size:12.5px; color:var(--muted);}
+  .readBody{font-size:14.5px; line-height:1.7; white-space:pre-wrap; word-break:break-word; margin-bottom:20px;}
+  .readAttach img{max-width:280px; border-radius:10px; margin-top:10px; border:1px solid var(--border);}
+  .readActions{display:flex; gap:8px; margin-top:auto; padding-top:16px; border-top:1px solid var(--border);}
+  .ghostBtn{background:var(--bg); border:1px solid var(--border); color:var(--text); padding:9px 16px; border-radius:10px; font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:6px;}
+  .ghostBtn:hover{background:var(--hover);}
+
+  /* Compose modal */
+  #composeOverlay{position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:flex-end; justify-content:flex-end; z-index:150; padding:0;}
+  #composeOverlay.show{display:flex;}
+  .composeBox{background:var(--panel); width:100%; max-width:520px; border-radius:16px 16px 0 0; box-shadow:0 -10px 40px rgba(0,0,0,.25); display:flex; flex-direction:column; max-height:88vh;}
+  .composeHead{display:flex; align-items:center; padding:14px 18px; border-bottom:1px solid var(--border); font-weight:700;}
+  .composeHead button{background:none; border:none; font-size:19px; color:var(--muted); margin-left:auto; padding:4px 8px;}
+  .composeBody{padding:14px 18px; overflow-y:auto; flex:1;}
+  .composeBody input, .composeBody textarea{width:100%; border:none; border-bottom:1px solid var(--border); padding:10px 2px; font-size:14.5px; background:transparent; color:var(--text); outline:none; margin-bottom:4px;}
+  .composeBody textarea{resize:none; min-height:180px; border-bottom:none; margin-top:8px;}
+  .attachPreview{display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px; color:var(--muted);}
+  .attachPreview img{width:44px; height:44px; object-fit:cover; border-radius:6px;}
+  .attachPreview .rm{color:var(--danger); cursor:pointer; font-weight:700;}
+  .composeFoot{display:flex; align-items:center; gap:10px; padding:12px 18px; border-top:1px solid var(--border);}
+  .sendBtn{background:var(--accent); color:#fff; border:none; padding:10px 22px; border-radius:22px; font-weight:700; font-size:14px;}
+  .sendBtn:disabled{opacity:.55;}
+  .attachIcon{background:none; border:none; font-size:19px; color:var(--muted); padding:8px; border-radius:50%;}
+  .attachIcon:hover{background:var(--hover);}
+  .composeStatus{margin-left:auto; font-size:12px; color:var(--muted);}
+
+  .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1f2330; color:#fff; padding:11px 20px; border-radius:24px; font-size:13.5px; z-index:300; opacity:0; transition:opacity .25s; pointer-events:none;}
+  .toast.show{opacity:1;}
+  .loaderDot{width:16px; height:16px; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .fullLoader{position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:400;}
+  .fullLoader .loaderDot{border-color:rgba(79,70,229,.25); border-top-color:var(--accent); width:34px; height:34px; border-width:3.5px;}
+
+  .sidebarOverlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:90;}
+
+  @media (max-width: 820px){
+    .menuBtn{display:block;}
+    .brand span{display:none;}
+    aside.sidebar{position:fixed; left:0; top:0; bottom:0; z-index:100; transform:translateX(-100%); box-shadow:8px 0 24px rgba(0,0,0,.15);}
+    aside.sidebar.open{transform:translateX(0);}
+    .sidebarOverlay.show{display:block;}
+    main.mailArea{margin:6px; border-radius:12px;}
+    .mailRow .who{width:88px;}
+    .searchBar{max-width:none;}
+    .composeBox{max-width:100%;}
+    .mailRow .time{width:52px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="authScreen">
+  <div class="authBox">
+    <div class="authLogo"><div class="mark">R</div><span>Recomail</span></div>
+    <h2 id="authTitle">আপনার অ্যাকাউন্টে লগইন করুন</h2>
+    <div id="signupNameField" class="field" style="display:none;">
+      <label>পুরো নাম</label>
+      <input type="text" id="nameInput" placeholder="আপনার নাম">
+    </div>
+    <div class="field">
+      <label>ইমেইল</label>
+      <input type="email" id="emailInput" placeholder="you@recomail.com" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>পাসওয়ার্ড</label>
+      <input type="password" id="passInput" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div class="authErr" id="authErr"></div>
+    <button class="authBtn" id="authSubmitBtn" onclick="handleAuthSubmit()">লগইন করুন</button>
+    <div class="authSwitch" id="authSwitchTxt">অ্যাকাউন্ট নেই? <a onclick="toggleAuthMode()">সাইন আপ করুন</a></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <header class="topbar">
+    <button class="menuBtn" onclick="toggleSidebar()">☰</button>
+    <div class="brand"><div class="mark">R</div><span>Recomail</span></div>
+    <div class="searchBar"><input type="text" id="searchInput" placeholder="মেইল সার্চ করুন..." oninput="renderList()"></div>
+    <div class="topActions">
+      <button class="iconBtn" onclick="toggleTheme()" title="থিম পরিবর্তন">🌓</button>
+      <div class="avatar" id="userAvatar" onclick="handleLogout()" title="লগআউট">R</div>
+    </div>
+  </header>
+
+  <div class="body">
+    <div class="sidebarOverlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+    <aside class="sidebar" id="sidebar">
+      <button class="composeBtn" onclick="openCompose()">✏️ নতুন মেইল লিখুন</button>
+      <div class="navItem active" data-folder="inbox" onclick="switchFolder('inbox')">📥 ইনবক্স <span class="badge" id="badgeInbox"></span></div>
+      <div class="navItem" data-folder="starred" onclick="switchFolder('starred')">⭐ স্টার করা</div>
+      <div class="navItem" data-folder="sent" onclick="switchFolder('sent')">📤 পাঠানো</div>
+      <div class="navItem" data-folder="draft" onclick="switchFolder('draft')">📝 ড্রাফট <span class="badge" id="badgeDraft"></span></div>
+      <div class="navItem" data-folder="trash" onclick="switchFolder('trash')">🗑️ ট্র্যাশ</div>
+    </aside>
+
+    <main class="mailArea">
+      <div id="listView" style="display:flex; flex-direction:column; height:100%;">
+        <div class="listHeader"><span id="folderTitle">ইনবক্স</span><span class="count" id="listCount"></span></div>
+        <div id="mailList"></div>
+      </div>
+      <div id="readPane"></div>
+    </main>
+  </div>
+</div>
+
+<!-- COMPOSE -->
+<div id="composeOverlay">
+  <div class="composeBox">
+    <div class="composeHead"><span id="composeTitle">নতুন মেইল</span><button onclick="closeCompose()">✕</button></div>
+    <div class="composeBody">
+      <input type="email" id="toInput" placeholder="প্রাপকের ইমেইল">
+      <input type="text" id="subjectInput" placeholder="সাবজেক্ট">
+      <textarea id="bodyInput" placeholder="আপনার মেসেজ লিখুন..."></textarea>
+      <input type="file" id="fileInput" accept="image/*" style="display:none;" onchange="handleFileSelect(event)">
+      <div id="attachPreviewWrap"></div>
+    </div>
+    <div class="composeFoot">
+      <button class="sendBtn" id="sendBtnEl" onclick="sendMail()">পাঠান ➤</button>
+      <button class="attachIcon" onclick="document.getElementById('fileInput').click()" title="ছবি সংযুক্ত করুন">📎</button>
+      <span class="composeStatus" id="composeStatus"></span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="fullLoader" id="fullLoader" style="display:none;"><div class="loaderDot"></div></div>
+
+<script>
+/* ================= FIREBASE CONFIG ================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyCOyQjrMlesiZuotfYxf7fzq1vsVfksSgI",
+  authDomain: "recomail-5bd5f.firebaseapp.com",
+  databaseURL: "https://recomail-5bd5f-default-rtdb.firebaseio.com",
+  projectId: "recomail-5bd5f",
+  storageBucket: "recomail-5bd5f.firebasestorage.app",
+  messagingSenderId: "314488808811",
+  appId: "1:314488808811:web:recomail-web"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// ImgBB key for attachments (image hosting). Replace with your own key from https://api.imgbb.com/
+const IMGBB_API_KEY = "PASTE_YOUR_IMGBB_API_KEY_HERE";
+
+/* ================= STATE ================= */
+let currentUser = null;
+let currentUserData = null;
+let isSignupMode = false;
+let currentFolder = "inbox";
+let allMails = [];
+let unsubscribeMails = null;
+let selectedAttachment = null; // {url}
+let openMailId = null;
+let draftEditId = null;
+
+/* ================= UTIL ================= */
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function showLoader(v){ document.getElementById('fullLoader').style.display = v ? 'flex' : 'none'; }
+function initials(name){ return (name||'?').trim().charAt(0).toUpperCase(); }
+function fmtTime(ts){
+  if(!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const now = new Date();
+  if(d.toDateString() === now.toDateString()){
+    return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  }
+  const diffDays = Math.floor((now - d)/86400000);
+  if(diffDays < 7) return d.toLocaleDateString('en-US',{weekday:'short'});
+  return d.toLocaleDateString('en-US',{month:'short', day:'numeric'});
+}
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ================= THEME ================= */
+(function initTheme(){
+  const saved = localStorage.getItem('recomail_theme');
+  if(saved === 'dark') document.documentElement.setAttribute('data-theme','dark');
+})();
+function toggleTheme(){
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  if(isDark){ document.documentElement.removeAttribute('data-theme'); localStorage.setItem('recomail_theme','light'); }
+  else{ document.documentElement.setAttribute('data-theme','dark'); localStorage.setItem('recomail_theme','dark'); }
+}
+
+/* ================= AUTH ================= */
+function toggleAuthMode(){
+  isSignupMode = !isSignupMode;
+  document.getElementById('signupNameField').style.display = isSignupMode ? 'block' : 'none';
+  document.getElementById('authTitle').textContent = isSignupMode ? 'নতুন অ্যাকাউন্ট তৈরি করুন' : 'আপনার অ্যাকাউন্টে লগইন করুন';
+  document.getElementById('authSubmitBtn').textContent = isSignupMode ? 'সাইন আপ করুন' : 'লগইন করুন';
+  document.getElementById('authSwitchTxt').innerHTML = isSignupMode
+    ? 'অ্যাকাউন্ট আছে? <a onclick="toggleAuthMode()">লগইন করুন</a>'
+    : 'অ্যাকাউন্ট নেই? <a onclick="toggleAuthMode()">সাইন আপ করুন</a>';
+  document.getElementById('authErr').textContent = '';
+}
+
+async function handleAuthSubmit(){
+  const email = document.getElementById('emailInput').value.trim().toLowerCase();
+  const pass = document.getElementById('passInput').value;
+  const name = document.getElementById('nameInput').value.trim();
+  const errEl = document.getElementById('authErr');
+  errEl.textContent = '';
+  if(!email || !pass){ errEl.textContent = 'ইমেইল ও পাসওয়ার্ড দিন'; return; }
+  if(isSignupMode && !name){ errEl.textContent = 'আপনার নাম দিন'; return; }
+  if(pass.length < 6){ errEl.textContent = 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে'; return; }
+
+  const btn = document.getElementById('authSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loaderDot"></span>';
+  try{
+    if(isSignupMode){
+      const cred = await auth.createUserWithEmailAndPassword(email, pass);
+      await db.collection('users').doc(cred.user.uid).set({
+        name, email, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      await auth.signInWithEmailAndPassword(email, pass);
+    }
+  }catch(e){
+    errEl.textContent = translateAuthError(e.code);
+    btn.disabled = false;
+    btn.textContent = isSignupMode ? 'সাইন আপ করুন' : 'লগইন করুন';
+  }
+}
+function translateAuthError(code){
+  const map = {
+    'auth/email-already-in-use': 'এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট আছে',
+    'auth/invalid-email': 'ইমেইল সঠিক নয়',
+    'auth/user-not-found': 'এই ইমেইলের কোনো অ্যাকাউন্ট নেই',
+    'auth/wrong-password': 'পাসওয়ার্ড ভুল হয়েছে',
+    'auth/invalid-credential': 'ইমেইল বা পাসওয়ার্ড ভুল',
+    'auth/weak-password': 'পাসওয়ার্ড দুর্বল, কমপক্ষে ৬ অক্ষর দিন',
+    'auth/too-many-requests': 'অনেকবার চেষ্টা হয়েছে, একটু পর আবার চেষ্টা করুন'
+  };
+  return map[code] || 'কিছু একটা সমস্যা হয়েছে, আবার চেষ্টা করুন';
+}
+function handleLogout(){
+  if(confirm('আপনি কি লগআউট করতে চান?')) auth.signOut();
+}
+
+auth.onAuthStateChanged(async (user) => {
+  if(user){
+    currentUser = user;
+    const doc = await db.collection('users').doc(user.uid).get();
+    currentUserData = doc.exists ? doc.data() : { name: user.email.split('@')[0], email: user.email };
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('app').classList.add('show');
+    document.getElementById('userAvatar').textContent = initials(currentUserData.name);
+    attachMailListener();
+  } else {
+    currentUser = null;
+    if(unsubscribeMails) unsubscribeMails();
+    document.getElementById('app').classList.remove('show');
+    document.getElementById('authScreen').style.display = 'flex';
+  }
+});
+
+/* ================= MAIL DATA MODEL =================
+   collection "mails" doc fields:
+   senderUid, senderEmail, senderName, recipientUid, recipientEmail,
+   subject, body, attachment (url|null), timestamp,
+   folderSender ('sent'|'draft'|'trash'), folderRecipient ('inbox'|'trash'),
+   readByRecipient (bool), starredBySender (bool), starredByRecipient (bool),
+   deletedBySender (bool), deletedByRecipient (bool)
+====================================================== */
+
+function attachMailListener(){
+  if(unsubscribeMails) unsubscribeMails();
+  unsubscribeMails = db.collection('mails')
+    .where('participants', 'array-contains', currentUser.uid)
+    .orderBy('timestamp', 'desc')
+    .onSnapshot(snap => {
+      allMails = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderList();
+      updateBadges();
+      if(openMailId){
+        const m = allMails.find(x => x.id === openMailId);
+        if(m) renderReadPane(m);
+      }
+    }, err => {
+      console.error(err);
+      toast('মেইল লোড করতে সমস্যা হয়েছে');
+    });
+}
+
+function mailsForFolder(folder){
+  const uid = currentUser.uid;
+  return allMails.filter(m => {
+    const isSender = m.senderUid === uid;
+    const isRecipient = m.recipientUid === uid;
+    if(folder === 'inbox') return isRecipient && m.folderRecipient === 'inbox' && !m.deletedByRecipient;
+    if(folder === 'sent') return isSender && m.folderSender === 'sent';
+    if(folder === 'draft') return isSender && m.folderSender === 'draft';
+    if(folder === 'trash') return (isSender && m.deletedBySender) || (isRecipient && m.deletedByRecipient);
+    if(folder === 'starred') return (isSender && m.starredBySender && m.folderSender !== 'draft' && !m.deletedBySender) ||
+                                     (isRecipient && m.starredByRecipient && !m.deletedByRecipient);
+    return false;
+  });
+}
+
+function updateBadges(){
+  const uid = currentUser.uid;
+  const unreadInbox = allMails.filter(m => m.recipientUid === uid && m.folderRecipient === 'inbox' && !m.deletedByRecipient && !m.readByRecipient).length;
+  const draftCount = allMails.filter(m => m.senderUid === uid && m.folderSender === 'draft').length;
+  document.getElementById('badgeInbox').textContent = unreadInbox > 0 ? unreadInbox : '';
+  document.getElementById('badgeDraft').textContent = draftCount > 0 ? draftCount : '';
+}
+
+/* ================= FOLDER / LIST RENDER ================= */
+const folderNames = { inbox:'ইনবক্স', starred:'স্টার করা', sent:'পাঠানো', draft:'ড্রাফট', trash:'ট্র্যাশ' };
+
+function switchFolder(folder){
+  currentFolder = folder;
+  document.querySelectorAll('.navItem').forEach(el => el.classList.toggle('active', el.dataset.folder === folder));
+  document.getElementById('folderTitle').textContent = folderNames[folder];
+  closeReadPane();
+  renderList();
+  if(window.innerWidth <= 820) toggleSidebar(false);
+}
+
+function renderList(){
+  const uid = currentUser.uid;
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  let mails = mailsForFolder(currentFolder);
+  if(q){
+    mails = mails.filter(m =>
+      (m.subject||'').toLowerCase().includes(q) ||
+      (m.body||'').toLowerCase().includes(q) ||
+      (m.senderName||'').toLowerCase().includes(q) ||
+      (m.senderEmail||'').toLowerCase().includes(q) ||
+      (m.recipientEmail||'').toLowerCase().includes(q)
+    );
+  }
+  document.getElementById('listCount').textContent = mails.length ? `${mails.length} টি মেইল` : '';
+  const listEl = document.getElementById('mailList');
+  if(mails.length === 0){
+    listEl.innerHTML = `<div class="emptyState"><div class="big">📭</div><div>কোনো মেইল নেই</div></div>`;
+    return;
+  }
+  listEl.innerHTML = mails.map(m => {
+    const isRecipient = m.recipientUid === uid;
+    const isSender = m.senderUid === uid;
+    const unread = isRecipient && !m.readByRecipient && currentFolder !== 'draft';
+    const starred = isSender ? m.starredBySender : m.starredByRecipient;
+    let whoLabel;
+    if(currentFolder === 'sent' || currentFolder === 'draft') whoLabel = 'প্রতি: ' + (m.recipientEmail || '');
+    else whoLabel = m.senderName || m.senderEmail || 'অজানা';
+    const subj = m.subject || '(কোনো সাবজেক্ট নেই)';
+    const snippet = (m.body || '').replace(/\n/g,' ').slice(0,60);
+    return `
+      <div class="mailRow ${unread?'unread':''}" onclick="openMail('${m.id}')">
+        <span class="star ${starred?'on':''}" onclick="event.stopPropagation(); toggleStar('${m.id}')">${starred?'★':'☆'}</span>
+        <span class="who">${escapeHtml(whoLabel)}</span>
+        <span class="content">${escapeHtml(subj)} — <span class="snippet">${escapeHtml(snippet)}</span></span>
+        <span class="time">${fmtTime(m.timestamp)}</span>
+      </div>`;
+  }).join('');
+}
+
+/* ================= READ PANE ================= */
+function openMail(id){
+  const m = allMails.find(x => x.id === id);
+  if(!m) return;
+  if(currentFolder === 'draft'){ openCompose(m); return; }
+  openMailId = id;
+  if(m.recipientUid === currentUser.uid && !m.readByRecipient){
+    db.collection('mails').doc(id).update({ readByRecipient: true });
+  }
+  renderReadPane(m);
+  document.getElementById('readPane').classList.add('show');
+  document.getElementById('listView').style.display = window.innerWidth <= 820 ? 'none' : 'flex';
+}
+function closeReadPane(){
+  openMailId = null;
+  document.getElementById('readPane').classList.remove('show');
+  document.getElementById('listView').style.display = 'flex';
+}
+function renderReadPane(m){
+  const uid = currentUser.uid;
+  const isSender = m.senderUid === uid;
+  const starred = isSender ? m.starredBySender : m.starredByRecipient;
+  const otherName = isSender ? (m.recipientEmail || '') : (m.senderName || m.senderEmail);
+  const otherEmail = isSender ? m.recipientEmail : m.senderEmail;
+  const inTrash = currentFolder === 'trash';
+  document.getElementById('readPane').innerHTML = `
+    <div class="readTop">
+      <button class="backBtn" onclick="closeReadPane()">←</button>
+      <div class="readSubject">${escapeHtml(m.subject || '(কোনো সাবজেক্ট নেই)')}</div>
+      <span class="star ${starred?'on':''}" style="font-size:22px; cursor:pointer;" onclick="toggleStar('${m.id}')">${starred?'★':'☆'}</span>
+    </div>
+    <div class="readMeta">
+      <div class="readAvatar">${initials(otherName)}</div>
+      <div class="info">
+        <b>${escapeHtml(otherName)}</b>
+        <div>${isSender ? 'প্রতি' : 'থেকে'}: ${escapeHtml(otherEmail||'')} · ${m.timestamp ? (m.timestamp.toDate?m.timestamp.toDate():new Date(m.timestamp)).toLocaleString('bn-BD') : ''}</div>
+      </div>
+    </div>
+    <div class="readBody">${escapeHtml(m.body || '')}</div>
+    ${m.attachment ? `<div class="readAttach"><img src="${m.attachment}" alt="attachment"></div>` : ''}
+    <div class="readActions">
+      ${!inTrash ? `
+        <button class="ghostBtn" onclick="replyTo('${m.id}')">↩️ রিপ্লাই</button>
+        <button class="ghostBtn" onclick="forwardMail('${m.id}')">➡️ ফরওয়ার্ড</button>
+        <button class="ghostBtn" onclick="deleteMail('${m.id}')">🗑️ ডিলিট</button>
+      ` : `
+        <button class="ghostBtn" onclick="restoreMail('${m.id}')">♻️ পুনরুদ্ধার</button>
+        <button class="ghostBtn" onclick="deleteMailForever('${m.id}')">❌ স্থায়ীভাবে মুছুন</button>
+      `}
+    </div>
+  `;
+}
+
+/* ================= ACTIONS ================= */
+async function toggleStar(id){
+  const m = allMails.find(x => x.id === id);
+  if(!m) return;
+  const uid = currentUser.uid;
+  if(m.senderUid === uid){
+    await db.collection('mails').doc(id).update({ starredBySender: !m.starredBySender });
+  } else {
+    await db.collection('mails').doc(id).update({ starredByRecipient: !m.starredByRecipient });
+  }
+}
+
+async function deleteMail(id){
+  const m = allMails.find(x => x.id === id);
+  if(!m) return;
+  const uid = currentUser.uid;
+  const update = {};
+  if(m.senderUid === uid) update.deletedBySender = true;
+  if(m.recipientUid === uid) update.deletedByRecipient = true;
+  await db.collection('mails').doc(id).update(update);
+  closeReadPane();
+  toast('মেইল ট্র্যাশে সরানো হয়েছে');
+}
+async function restoreMail(id){
+  const m = allMails.find(x => x.id === id);
+  if(!m) return;
+  const uid = currentUser.uid;
+  const update = {};
+  if(m.senderUid === uid) update.deletedBySender = false;
+  if(m.recipientUid === uid) update.deletedByRecipient = false;
+  await db.collection('mails').doc(id).update(update);
+  closeReadPane();
+  toast('মেইল পুনরুদ্ধার করা হয়েছে');
+}
+async function deleteMailForever(id){
+  if(!confirm('এই মেইলটি স্থায়ীভাবে মুছে ফেলা হবে। নিশ্চিত?')) return;
+  await db.collection('mails').doc(id).delete();
+  closeReadPane();
+  toast('মেইল স্থায়ীভাবে মুছে ফেলা হয়েছে');
+}
+
+function replyTo(id){
+  const m = allMails.find(x => x.id === id);
+  if(!m) return;
+  const uid = currentUser.uid;
+  const toEmail = m.senderUid === uid ? m.recipientEmail : m.senderEmail;
+  openCompose(null, {
+    to: toEmail,
+    subject: (m.subject||'').startsWith('Re: ') ? m.subject : 'Re: ' + (m.subject||''),
+    body: `\n\n---- মূল মেইল ----\n${m.body||''}`
+  });
+}
+function forwardMail(id){
+  const m = allMails.find(x => x.id === id);
+  if(!m) return;
+  openCompose(null, {
+    to: '',
+    subject: (m.subject||'').startsWith('Fwd: ') ? m.subject : 'Fwd: ' + (m.subject||''),
+    body: `\n\n---- ফরওয়ার্ড করা মেইল ----\nথেকে: ${m.senderEmail}\n${m.body||''}`,
+    attachment: m.attachment || null
+  });
+}
+
+/* ================= COMPOSE ================= */
+function openCompose(draftMail, prefill){
+  draftEditId = null;
+  selectedAttachment = null;
+  document.getElementById('toInput').value = '';
+  document.getElementById('subjectInput').value = '';
+  document.getElementById('bodyInput').value = '';
+  document.getElementById('attachPreviewWrap').innerHTML = '';
+  document.getElementById('composeStatus').textContent = '';
+  document.getElementById('composeTitle').textContent = 'নতুন মেইল';
+
+  if(draftMail){
+    draftEditId = draftMail.id;
+    document.getElementById('toInput').value = draftMail.recipientEmail || '';
+    document.getElementById('subjectInput').value = draftMail.subject || '';
+    document.getElementById('bodyInput').value = draftMail.body || '';
+    if(draftMail.attachment){ selectedAttachment = draftMail.attachment; renderAttachPreview(); }
+    document.getElementById('composeTitle').textContent = 'ড্রাফট সম্পাদনা';
+  } else if(prefill){
+    document.getElementById('toInput').value = prefill.to || '';
+    document.getElementById('subjectInput').value = prefill.subject || '';
+    document.getElementById('bodyInput').value = prefill.body || '';
+    if(prefill.attachment){ selectedAttachment = prefill.attachment; renderAttachPreview(); }
+  }
+  document.getElementById('composeOverlay').classList.add('show');
+}
+function closeCompose(){
+  const to = document.getElementById('toInput').value.trim();
+  const subject = document.getElementById('subjectInput').value.trim();
+  const body = document.getElementById('bodyInput').value.trim();
+  document.getElementById('composeOverlay').classList.remove('show');
+  if(to || subject || body){ saveDraft(to, subject, body); }
+}
+
+function renderAttachPreview(){
+  const wrap = document.getElementById('attachPreviewWrap');
+  if(!selectedAttachment){ wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<div class="attachPreview"><img src="${selectedAttachment}"><span>ছবি সংযুক্ত হয়েছে</span><span class="rm" onclick="removeAttachment()">✕</span></div>`;
+}
+function removeAttachment(){ selectedAttachment = null; renderAttachPreview(); }
+
+async function handleFileSelect(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  if(IMGBB_API_KEY === 'PASTE_YOUR_IMGBB_API_KEY_HERE'){
+    toast('ImgBB API key সেট করা হয়নি — index.html এ IMGBB_API_KEY বসান');
+    return;
+  }
+  const statusEl = document.getElementById('composeStatus');
+  statusEl.textContent = 'ছবি আপলোড হচ্ছে...';
+  try{
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result.split(',')[1];
+      const form = new FormData();
+      form.append('image', base64);
+      const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method:'POST', body: form });
+      const data = await res.json();
+      if(data.success){
+        selectedAttachment = data.data.url;
+        renderAttachPreview();
+        statusEl.textContent = '';
+      } else {
+        statusEl.textContent = '';
+        toast('ছবি আপলোড ব্যর্থ হয়েছে');
+      }
+    };
+    reader.readAsDataURL(file);
+  }catch(err){
+    statusEl.textContent = '';
+    toast('ছবি আপলোডে সমস্যা হয়েছে');
+  }
+  e.target.value = '';
+}
+
+async function saveDraft(to, subject, body){
+  if(!to && !subject && !body && !selectedAttachment) return;
+  const payload = {
+    senderUid: currentUser.uid, senderEmail: currentUser.email, senderName: currentUserData.name,
+    recipientEmail: to || '', recipientUid: null,
+    subject, body, attachment: selectedAttachment || null,
+    folderSender: 'draft', folderRecipient: null,
+    starredBySender: false, starredByRecipient: false,
+    readByRecipient: false, deletedBySender: false, deletedByRecipient: false,
+    participants: [currentUser.uid],
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  if(draftEditId){
+    await db.collection('mails').doc(draftEditId).update(payload);
+  } else {
+    await db.collection('mails').add(payload);
+  }
+}
+
+async function sendMail(){
+  const toEmail = document.getElementById('toInput').value.trim().toLowerCase();
+  const subject = document.getElementById('subjectInput').value.trim();
+  const body = document.getElementById('bodyInput').value.trim();
+  const statusEl = document.getElementById('composeStatus');
+
+  if(!toEmail){ toast('প্রাপকের ইমেইল দিন'); return; }
+  if(toEmail === currentUser.email){ toast('নিজেকে মেইল পাঠানো যাবে না'); return; }
+  if(!subject && !body){ toast('সাবজেক্ট বা মেসেজ লিখুন'); return; }
+
+  const sendBtn = document.getElementById('sendBtnEl');
+  sendBtn.disabled = true;
+  statusEl.textContent = 'পাঠানো হচ্ছে...';
+
+  try{
+    const userQuery = await db.collection('users').where('email', '==', toEmail).limit(1).get();
+    if(userQuery.empty){
+      toast('এই ইমেইলে কোনো Recomail ইউজার পাওয়া যায়নি');
+      statusEl.textContent = '';
+      sendBtn.disabled = false;
+      return;
+    }
+    const recipientDoc = userQuery.docs[0];
+    const recipientUid = recipientDoc.id;
+
+    const payload = {
+      senderUid: currentUser.uid, senderEmail: currentUser.email, senderName: currentUserData.name,
+      recipientUid, recipientEmail: toEmail,
+      subject, body, attachment: selectedAttachment || null,
+      folderSender: 'sent', folderRecipient: 'inbox',
+      starredBySender: false, starredByRecipient: false,
+      readByRecipient: false, deletedBySender: false, deletedByRecipient: false,
+      participants: [currentUser.uid, recipientUid],
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    if(draftEditId){
+      await db.collection('mails').doc(draftEditId).update(payload);
+    } else {
+      await db.collection('mails').add(payload);
+    }
+    draftEditId = null;
+    selectedAttachment = null;
+    document.getElementById('composeOverlay').classList.remove('show');
+    toast('মেইল পাঠানো হয়েছে ✓');
+  }catch(err){
+    console.error(err);
+    toast('মেইল পাঠাতে সমস্যা হয়েছে');
+  }
+  statusEl.textContent = '';
+  sendBtn.disabled = false;
+}
+
+/* ================= SIDEBAR (mobile) ================= */
+function toggleSidebar(force){
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebarOverlay');
+  const open = typeof force === 'boolean' ? force : !sb.classList.contains('open');
+  sb.classList.toggle('open', open);
+  ov.classList.toggle('show', open);
+}
+
+window.addEventListener('resize', () => {
+  if(window.innerWidth > 820){
+    document.getElementById('listView').style.display = 'flex';
+  } else if(openMailId){
+    document.getElementById('listView').style.display = 'none';
+  }
+});
+</script>
+</body>
+</html>
